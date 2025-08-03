@@ -1,0 +1,61 @@
+{
+  // Go 语言配置
+  "go.toolsManagement.autoUpdate": true,
+  "go.useLanguageServer": true,
+  "go.gopath": "",
+  "go.goroot": "",
+  
+  // Go 模块配置 (配合 go.work 使用)
+  "go.alternateTools": {},
+  "go.buildOnSave": "off",
+  "go.lintOnSave": "package",
+  "go.vetOnSave": "package",
+  
+  // Gopls 配置
+  "gopls": {
+    "ui.completion.usePlaceholders": true,
+    "ui.diagnostic.staticcheck": true,
+    "ui.codelenses": {
+      "gc_details": false,
+      "generate": true,
+      "regenerate_cgo": true,
+      "test": true,
+      "tidy": true,
+      "upgrade_dependency": true,
+      "vendor": true
+    },
+    // 工作空间配置
+    "build.directoryFilters": ["-node_modules", "-frontend"],
+    "formatting.gofumpt": true,
+    // 实验性功能
+    "experimentalWorkspaceModule": true,
+    "expandWorkspaceToModule": false
+  },
+  
+  // 文件关联
+  "files.associations": {
+    "*.go": "go",
+    "go.mod": "go.mod",
+    "go.sum": "go.sum",
+    "go.work": "go.work",
+    "go.work.sum": "go.sum"
+  },
+  
+  // 编辑器配置
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+  
+  // 终端配置
+  "terminal.integrated.cwd": "${workspaceFolder}",
+  
+  // 搜索排除配置
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/.git": true,
+    "**/vendor": true
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "recommendations": [
+    // Go 开发必备
+    "golang.go",
+    
+    // 前端开发
+    "bradlc.vscode-tailwindcss",
+    "esbenp.prettier-vscode",
+    "ms-vscode.vscode-typescript-next",
+    
+    // 通用开发工具
+    "ms-vscode.vscode-json",
+    "redhat.vscode-yaml",
+    "ms-vscode.vscode-eslint",
+    
+    // Git 相关
+    "eamodio.gitlens",
+    
+    // 数据库
+    "qwtel.sqlite-viewer",
+    
+    // API 开发
+    "humao.rest-client",
+    
+    // 代码质量
+    "streetsidesoftware.code-spell-checker"
+  ],
+  "unwantedRecommendations": [
+    "ms-vscode.go"
+  ]
+}
