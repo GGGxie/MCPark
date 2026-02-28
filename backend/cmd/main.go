@@ -1,54 +1,94 @@
 package main
 
 import (
-	"fmt"
 	"log"
+	"net/http"
 
 	"MCPark/internal/config"
-	"MCPark/internal/database"
+	"MCPark/internal/db"
 	"MCPark/internal/handler"
-	"MCPark/internal/repository"
-	"MCPark/internal/service"
+	"MCPark/internal/middleware"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	// 初始化配置
-	if err := config.InitConfig(); err != nil {
-		log.Fatalf("Failed to initialize config: %v", err)
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using environment variables")
 	}
-	log.Printf("✅ Config initialized: %s v%s", config.GlobalConfig.App.Name, config.GlobalConfig.App.Version)
 
-	// 设置Gin模式
-	gin.SetMode(config.GlobalConfig.App.Mode)
+	cfg := config.Load()
+	database := db.InitDB(cfg.DatabasePath)
+	defer database.Close()
 
-	// 初始化数据库
-	database.InitDatabase()
+	r := gin.Default()
 
-	// 初始化仓库层
-	serviceRepo := repository.NewServiceRepository(database.GetDB())
-	categoryRepo := repository.NewCategoryRepository(database.GetDB())
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{cfg.FrontendURL, "http://localhost:5173", "http://localhost:3000"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowCredentials: true,
+	}))
 
-	// 初始化服务层
-	mcpService := service.NewMCPService(serviceRepo, categoryRepo)
+	authHandler := handler.NewAuthHandler(database, cfg)
+	serviceHandler := handler.NewServiceHandler(database)
+	adminHandler := handler.NewAdminHandler(database)
+	articleHandler := handler.NewArticleHandler(database)
 
-	// 初始化处理器层
-	h := handler.NewHandler(mcpService)
+	// Serve frontend static files
+	r.Static("/assets", "./static/assets")
+	r.StaticFile("/vite.svg", "./static/vite.svg")
+	r.NoRoute(func(c *gin.Context) {
+		if len(c.Request.URL.Path) > 4 && c.Request.URL.Path[:4] == "/api" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Not found"})
+			return
+		}
+		c.File("./static/index.html")
+	})
 
-	// 设置路由
-	r := h.SetupRoutes()
+	api := r.Group("/api")
+	{
+		auth := api.Group("/auth")
+		{
+			auth.GET("/google", authHandler.GoogleLogin)
+			auth.GET("/google/callback", authHandler.GoogleCallback)
+			auth.POST("/google/token", authHandler.GoogleTokenLogin)
+			auth.GET("/me", middleware.AuthRequired(cfg.JWTSecret), authHandler.GetMe)
+		}
 
-	// 启动信息
-	addr := config.GlobalConfig.GetServerAddr()
-	port := config.GlobalConfig.App.Port
+		services := api.Group("/services")
+		{
+			services.GET("", serviceHandler.ListServices)
+			services.GET("/featured", serviceHandler.GetFeaturedServices)
+			services.GET("/categories", serviceHandler.GetCategories)
+			services.GET("/:id", serviceHandler.GetService)
+			services.POST("", middleware.AuthRequired(cfg.JWTSecret), serviceHandler.CreateService)
+			services.POST("/:id/like", middleware.AuthRequired(cfg.JWTSecret), serviceHandler.LikeService)
+			services.POST("/:id/install", serviceHandler.InstallService)
+			services.GET("/:id/comments", serviceHandler.GetComments)
+			services.POST("/:id/comments", middleware.AuthRequired(cfg.JWTSecret), serviceHandler.CreateComment)
+		}
 
-	fmt.Printf("🚀 %s v%s 服务启动成功！\n", config.GlobalConfig.App.Name, config.GlobalConfig.App.Version)
-	fmt.Printf("📊 数据库类型: %s\n", config.GlobalConfig.Database.Type)
-	fmt.Printf("📱 访问地址: http://localhost:%d\n", port)
-	fmt.Printf("🔧 API地址: http://localhost:%d/api/v1\n", port)
-	fmt.Printf("💚 健康检查: http://localhost:%d/api/v1/health\n", port)
+		admin := api.Group("/admin")
+		admin.Use(middleware.AdminRequired(cfg.JWTSecret))
+		{
+			admin.GET("/services", adminHandler.ListAllServices)
+			admin.POST("/services/:id/approve", adminHandler.ApproveService)
+			admin.POST("/services/:id/reject", adminHandler.RejectService)
+			admin.DELETE("/services/:id", adminHandler.DeleteService)
+		}
 
-	// 启动服务器
-	log.Fatal(r.Run(addr))
+		articles := api.Group("/articles")
+		{
+			articles.GET("", articleHandler.ListArticles)
+			articles.GET("/:id", articleHandler.GetArticle)
+		}
+	}
+
+	log.Printf("MCPark server starting on port %s", cfg.Port)
+	if err := r.Run(":" + cfg.Port); err != nil {
+		log.Fatal("Failed to start server:", err)
+	}
 }

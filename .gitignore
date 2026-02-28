@@ -1,0 +1,27 @@
+# 二进制文件
+backend/mcpark
+backend/main
+
+# 数据库文件
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+
+# 运行时文件
+backend/.backend.pid
+backend/backend.log
+backend/.env
+frontend/.env
+
+# Node & 构建产物（前端构建会复制到 static）
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+
+# Playwright 测试截图
+.playwright-mcp/
+
+# 旧的 YAML 配置（已迁移到 .env）
+backend/conf/
+backend/configs/

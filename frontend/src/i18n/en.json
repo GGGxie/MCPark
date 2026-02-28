@@ -1,0 +1,142 @@
+{
+  "nav": {
+    "discover": "Discover",
+    "learn": "Learn",
+    "help": "Help",
+    "submit": "Submit MCP",
+    "login": "Login",
+    "logout": "Logout",
+    "admin": "Admin"
+  },
+  "hero": {
+    "title": "Discover MCP Servers",
+    "subtitle": "Explore Model Context Protocol servers to extend your AI assistant's capabilities"
+  },
+  "home": {
+    "featured": "Featured MCPs",
+    "hottest": "Hottest",
+    "latest": "Latest",
+    "search": "Search MCP servers by name or description...",
+    "textOnly": "Text Only",
+    "imageText": "Image + Text",
+    "noResults": "No MCP servers found",
+    "likes": "likes",
+    "views": "views",
+    "installs": "installs",
+    "prev": "Previous",
+    "next": "Next"
+  },
+  "service": {
+    "back": "Back",
+    "category": "Category",
+    "created": "Created",
+    "updated": "Last Updated",
+    "author": "Author",
+    "tags": "Tags",
+    "installs": "Installs",
+    "comments": "Comments",
+    "loginToComment": "Please log in to comment",
+    "addComment": "Add a comment...",
+    "submitComment": "Submit",
+    "like": "Like",
+    "share": "Share",
+    "copyConfig": "Copy Config",
+    "configCopied": "Copied!",
+    "configJson": "MCP Config"
+  },
+  "auth": {
+    "title": "Sign In to MCPark",
+    "subtitle": "Discover, share and submit MCP servers",
+    "google": "Continue with Google",
+    "or": "or",
+    "email": "Email",
+    "password": "Password",
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "emailPlaceholder": "your@email.com",
+    "passwordPlaceholder": "Enter your password",
+    "googleError": "Google sign-in failed, please try again"
+  },
+  "learn": {
+    "title": "Learn About MCP",
+    "subtitle": "Articles, tutorials, and resources to help you master Model Context Protocol",
+    "readMore": "Read More"
+  },
+  "help": {
+    "title": "Help & Documentation",
+    "subtitle": "Everything you need to know about MCP servers and MCPark",
+    "gettingStarted": "Getting Started",
+    "steps": {
+      "browse": "Browse",
+      "browseDesc": "Explore the MCP server library to find what you need",
+      "download": "Configure",
+      "downloadDesc": "Copy the MCP config to your Claude Desktop or Cursor settings",
+      "install": "Install",
+      "installDesc": "Follow the installation guide to set up the MCP server",
+      "use": "Use",
+      "useDesc": "Start using the MCP server to extend your AI capabilities"
+    },
+    "faq": "Frequently Asked Questions",
+    "faqs": {
+      "q1": "What is MCP?",
+      "a1": "MCP (Model Context Protocol) is an open standard that enables AI assistants to securely connect to external data sources and tools.",
+      "q2": "How do I install an MCP server?",
+      "a2": "Copy the MCP config JSON and add it to your Claude Desktop or Cursor settings file, then restart the application.",
+      "q3": "How do I submit an MCP server?",
+      "a3": "Click Submit MCP in the navigation bar, fill in the required information, and submit for review.",
+      "q4": "What clients support MCP?",
+      "a4": "Claude Desktop, Cursor IDE, and other MCP-compatible clients support MCP servers.",
+      "q5": "Is MCP free to use?",
+      "a5": "Yes, MCP is an open standard. Most MCP servers are free and open source.",
+      "q6": "How do I create my own MCP server?",
+      "a6": "Use the official MCP SDK for TypeScript or Python to build your own server."
+    },
+    "contact": "Contact Us",
+    "contactEmail": "Email",
+    "contactGithub": "GitHub",
+    "contactCommunity": "Community"
+  },
+  "submit": {
+    "title": "Submit an MCP Server",
+    "subtitle": "Share your MCP server with the community",
+    "nameLabel": "Name (slug, e.g. my-server)",
+    "titleLabel": "Title (English)",
+    "titleZHLabel": "Title (Chinese)",
+    "descLabel": "Description (English)",
+    "descZHLabel": "Description (Chinese)",
+    "categoryLabel": "Category",
+    "iconLabel": "Icon (emoji)",
+    "configLabel": "MCP Config JSON",
+    "contentLabel": "Documentation (English, Markdown)",
+    "contentZHLabel": "Documentation (Chinese, Markdown)",
+    "tagsLabel": "Tags (comma separated)",
+    "submitBtn": "Submit for Review",
+    "loginRequired": "Please log in to submit an MCP server",
+    "success": "MCP server submitted! Awaiting review."
+  },
+  "admin": {
+    "title": "Admin Panel",
+    "all": "All",
+    "pending": "Pending",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "approve": "Approve",
+    "reject": "Reject",
+    "delete": "Delete",
+    "noServices": "No MCP servers found"
+  },
+  "footer": {
+    "description": "A community-driven MCP server repository for discovering, sharing, and using Model Context Protocol servers.",
+    "product": "Product",
+    "legal": "Legal",
+    "connect": "Connect",
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy",
+    "rights": "All rights reserved."
+  },
+  "notFound": {
+    "title": "404",
+    "message": "Oops! Page not found",
+    "back": "Return to Home"
+  }
+}
