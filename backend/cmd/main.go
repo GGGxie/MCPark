@@ -32,10 +32,11 @@ func main() {
 		AllowCredentials: true,
 	}))
 
+	dedup := handler.NewDedup()
 	authHandler := handler.NewAuthHandler(database, cfg)
-	serviceHandler := handler.NewServiceHandler(database)
+	serviceHandler := handler.NewServiceHandler(database, dedup)
 	adminHandler := handler.NewAdminHandler(database)
-	articleHandler := handler.NewArticleHandler(database)
+	articleHandler := handler.NewArticleHandler(database, dedup)
 
 	// Serve frontend static files
 	r.Static("/assets", "./static/assets")

@@ -44,8 +44,8 @@ export default function ServiceDetailPage() {
 
   const handleInstall = async () => {
     if (!id) return
-    await api.services.install(id)
-    if (service) {
+    const res = await api.services.install(id)
+    if (service && res.counted) {
       setService({ ...service, install_count: service.install_count + 1 })
     }
   }

@@ -2,9 +2,11 @@ package handler
 
 import (
 	"database/sql"
+	"fmt"
 	"math"
 	"net/http"
 	"strconv"
+	"time"
 
 	"MCPark/internal/model"
 
@@ -12,11 +14,16 @@ import (
 )
 
 type ServiceHandler struct {
-	db *sql.DB
+	db    *sql.DB
+	dedup *actionDedup
 }
 
-func NewServiceHandler(db *sql.DB) *ServiceHandler {
-	return &ServiceHandler{db: db}
+func NewServiceHandler(db *sql.DB, dedup *actionDedup) *ServiceHandler {
+	return &ServiceHandler{db: db, dedup: dedup}
+}
+
+func NewDedup() *actionDedup {
+	return newActionDedup()
 }
 
 func (h *ServiceHandler) ListServices(c *gin.Context) {
@@ -135,7 +142,10 @@ func (h *ServiceHandler) GetCategories(c *gin.Context) {
 func (h *ServiceHandler) GetService(c *gin.Context) {
 	id := c.Param("id")
 
-	h.db.Exec("UPDATE services SET views = views + 1 WHERE id = ?", id)
+	key := fmt.Sprintf("view:service:%s:%s", c.ClientIP(), id)
+	if h.dedup.Allow(key, 1*time.Hour) {
+		h.db.Exec("UPDATE services SET views = views + 1 WHERE id = ?", id)
+	}
 
 	var s model.Service
 	err := h.db.QueryRow(`SELECT id, name, title, title_zh, description, desc_zh, category, icon, image, config_json,
@@ -199,8 +209,14 @@ func (h *ServiceHandler) LikeService(c *gin.Context) {
 
 func (h *ServiceHandler) InstallService(c *gin.Context) {
 	serviceID := c.Param("id")
-	h.db.Exec("UPDATE services SET install_count = install_count + 1 WHERE id = ?", serviceID)
-	c.JSON(http.StatusOK, gin.H{"message": "Install count updated"})
+
+	key := fmt.Sprintf("install:%s:%s", c.ClientIP(), serviceID)
+	if h.dedup.Allow(key, 24*time.Hour) {
+		h.db.Exec("UPDATE services SET install_count = install_count + 1 WHERE id = ?", serviceID)
+		c.JSON(http.StatusOK, gin.H{"message": "Install count updated", "counted": true})
+	} else {
+		c.JSON(http.StatusOK, gin.H{"message": "Already counted", "counted": false})
+	}
 }
 
 func (h *ServiceHandler) GetComments(c *gin.Context) {

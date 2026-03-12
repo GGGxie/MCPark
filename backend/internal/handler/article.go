@@ -2,7 +2,9 @@ package handler
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
+	"time"
 
 	"MCPark/internal/model"
 
@@ -10,11 +12,12 @@ import (
 )
 
 type ArticleHandler struct {
-	db *sql.DB
+	db    *sql.DB
+	dedup *actionDedup
 }
 
-func NewArticleHandler(db *sql.DB) *ArticleHandler {
-	return &ArticleHandler{db: db}
+func NewArticleHandler(db *sql.DB, dedup *actionDedup) *ArticleHandler {
+	return &ArticleHandler{db: db, dedup: dedup}
 }
 
 func (h *ArticleHandler) ListArticles(c *gin.Context) {
@@ -50,7 +53,10 @@ func (h *ArticleHandler) ListArticles(c *gin.Context) {
 func (h *ArticleHandler) GetArticle(c *gin.Context) {
 	id := c.Param("id")
 
-	h.db.Exec("UPDATE articles SET views = views + 1 WHERE id = ?", id)
+	key := fmt.Sprintf("view:article:%s:%s", c.ClientIP(), id)
+	if h.dedup.Allow(key, 1*time.Hour) {
+		h.db.Exec("UPDATE articles SET views = views + 1 WHERE id = ?", id)
+	}
 
 	var a model.Article
 	err := h.db.QueryRow(`SELECT id, title, title_zh, description, desc_zh, category, content, content_zh, author_id, author_name, views, created_at FROM articles WHERE id = ?`, id).
