@@ -2,33 +2,60 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// FileDSN builds the DSN for an on-disk database. Foreign keys are enforced
+// on every pooled connection.
+func FileDSN(dbPath string) string {
+	return dbPath + "?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=5000&_txlock=immediate"
+}
+
+// MemoryDSN returns a named shared-cache in-memory DSN (used by tests).
+// Distinct names yield isolated databases.
+func MemoryDSN(name string) string {
+	return "file:" + url.QueryEscape(name) + "?mode=memory&cache=shared&_foreign_keys=on&_txlock=immediate"
+}
+
+// Init opens the database at dsn, creates the schema and seeds sample data.
+func Init(dsn string) (*sql.DB, error) {
+	database, err := sql.Open("sqlite3", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+	if err = database.Ping(); err != nil {
+		database.Close()
+		return nil, fmt.Errorf("ping database: %w", err)
+	}
+	if err = createTables(database); err != nil {
+		database.Close()
+		return nil, err
+	}
+	if err = seedData(database); err != nil {
+		database.Close()
+		return nil, err
+	}
+	return database, nil
+}
+
 func InitDB(dbPath string) *sql.DB {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		log.Fatal("Failed to create database directory:", err)
 	}
-
-	database, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL")
+	database, err := Init(FileDSN(dbPath))
 	if err != nil {
-		log.Fatal("Failed to open database:", err)
+		log.Fatal("Failed to initialise database:", err)
 	}
-
-	if err = database.Ping(); err != nil {
-		log.Fatal("Failed to ping database:", err)
-	}
-
-	createTables(database)
-	seedData(database)
 	return database
 }
 
-func createTables(database *sql.DB) {
+func createTables(database *sql.DB) error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,19 +126,24 @@ func createTables(database *sql.DB) {
 
 	for _, q := range queries {
 		if _, err := database.Exec(q); err != nil {
-			log.Fatal("Failed to create table:", err)
+			return fmt.Errorf("create table: %w", err)
 		}
 	}
+	return nil
 }
 
-func seedData(database *sql.DB) {
+func seedData(database *sql.DB) error {
 	var count int
-	database.QueryRow("SELECT COUNT(*) FROM services").Scan(&count)
+	if err := database.QueryRow("SELECT COUNT(*) FROM services").Scan(&count); err != nil {
+		return fmt.Errorf("count services: %w", err)
+	}
 	if count > 0 {
-		return
+		return nil
 	}
 
-	database.Exec(`INSERT INTO users (id, google_id, email, name, avatar, is_admin) VALUES (1, 'system', 'system@mcpark.cc', 'MCPark', '', 0)`)
+	if _, err := database.Exec(`INSERT OR IGNORE INTO users (id, google_id, email, name, avatar, is_admin) VALUES (1, 'system', 'system@mcpark.cc', 'MCPark', '', 0)`); err != nil {
+		return fmt.Errorf("seed system user: %w", err)
+	}
 
 	services := []struct {
 		name, title, titleZH, desc, descZH, category, icon, configJSON, content, contentZH, tags string
@@ -275,10 +307,12 @@ func seedData(database *sql.DB) {
 		if s.featured {
 			featured = 1
 		}
-		database.Exec(`INSERT INTO services (name, title, title_zh, description, desc_zh, category, icon, config_json, content, content_zh, tags, author_id, author_name, status, featured, likes, views, install_count)
+		if _, err := database.Exec(`INSERT INTO services (name, title, title_zh, description, desc_zh, category, icon, config_json, content, content_zh, tags, author_id, author_name, status, featured, likes, views, install_count)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'MCPark', 'approved', ?, ?, ?, ?)`,
 			s.name, s.title, s.titleZH, s.desc, s.descZH, s.category, s.icon, s.configJSON,
-			s.content, s.contentZH, s.tags, featured, s.likes, s.views, s.installCount)
+			s.content, s.contentZH, s.tags, featured, s.likes, s.views, s.installCount); err != nil {
+			return fmt.Errorf("seed service %q: %w", s.name, err)
+		}
 	}
 
 	articles := []struct {
@@ -318,8 +352,11 @@ func seedData(database *sql.DB) {
 	}
 
 	for _, a := range articles {
-		database.Exec(`INSERT INTO articles (title, title_zh, description, desc_zh, category, content, content_zh, author_id, author_name, views)
+		if _, err := database.Exec(`INSERT INTO articles (title, title_zh, description, desc_zh, category, content, content_zh, author_id, author_name, views)
 			VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'MCPark', ?)`,
-			a.title, a.titleZH, a.desc, a.descZH, a.category, a.content, a.contentZH, a.views)
+			a.title, a.titleZH, a.desc, a.descZH, a.category, a.content, a.contentZH, a.views); err != nil {
+			return fmt.Errorf("seed article %q: %w", a.title, err)
+		}
 	}
+	return nil
 }

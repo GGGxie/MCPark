@@ -1,5 +1,6 @@
 # 构建阶段
-FROM golang:1.21-alpine AS builder
+# 与 go.mod 的 go 指令保持一致
+FROM golang:1.25-alpine AS builder
 
 # 设置工作目录
 WORKDIR /app
@@ -40,12 +41,17 @@ RUN mkdir -p /app/data
 # 设置时区
 ENV TZ=Asia/Shanghai
 
+# 容器内需要对外（供 nginx / 端口映射访问）时显式监听 0.0.0.0；二进制默认只监听 127.0.0.1
+ENV PORT=8080
+ENV LISTEN_ADDR=0.0.0.0
+# JWT_SECRET 必须在运行时注入（至少 32 个字符），镜像内不含默认值
+
 # 暴露端口
 EXPOSE 8080
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/v1/health || exit 1
+    CMD wget -q -O /dev/null --tries=1 http://127.0.0.1:8080/api/health || exit 1
 
 # 启动应用
 CMD ["./main"]

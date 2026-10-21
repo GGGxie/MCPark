@@ -1,25 +1,38 @@
-import { useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { api } from '../api'
 
 export default function AuthCallback() {
   const navigate = useNavigate()
-  const [params] = useSearchParams()
   const { login } = useAuth()
+  // Captured once: StrictMode runs effects twice in dev, and the fragment is cleared on first read.
+  const tokenRef = useRef<string | null | undefined>(undefined)
 
   useEffect(() => {
-    const token = params.get('token')
-    if (token) {
-      localStorage.setItem('token', token)
-      api.auth.me().then((user) => {
-        login(token, user)
-        navigate('/')
-      }).catch(() => navigate('/auth'))
-    } else {
-      navigate('/auth')
+    // The backend returns the token in the URL fragment (#token=...) so it is
+    // never sent to a server or written to access logs.
+    if (tokenRef.current === undefined) {
+      tokenRef.current = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token')
+      // Drop the fragment from the address bar and history right away.
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
     }
-  }, [params, login, navigate])
+    const token = tokenRef.current
+
+    if (!token) {
+      navigate('/auth')
+      return
+    }
+
+    localStorage.setItem('token', token)
+    api.auth.me().then((user) => {
+      login(token, user)
+      navigate('/')
+    }).catch(() => {
+      localStorage.removeItem('token')
+      navigate('/auth')
+    })
+  }, [login, navigate])
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center">

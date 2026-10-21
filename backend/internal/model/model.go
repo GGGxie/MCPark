@@ -63,23 +63,25 @@ type Comment struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// Length limits are counted in characters (runes). With the 256KB request body
+// cap, very large multi-byte payloads may be rejected by the body limit first.
 type CreateServiceRequest struct {
-	Name        string `json:"name"`
-	Title       string `json:"title" binding:"required"`
-	TitleZH     string `json:"title_zh"`
-	Description string `json:"description" binding:"required"`
-	DescZH      string `json:"desc_zh"`
-	Category    string `json:"category" binding:"required"`
-	Icon        string `json:"icon"`
-	Image       string `json:"image"`
-	ConfigJSON  string `json:"config_json"`
-	Content     string `json:"content" binding:"required"`
-	ContentZH   string `json:"content_zh"`
-	Tags        string `json:"tags"`
+	Name        string `json:"name" binding:"max=200"`
+	Title       string `json:"title" binding:"required,max=200"`
+	TitleZH     string `json:"title_zh" binding:"max=200"`
+	Description string `json:"description" binding:"required,max=2000"`
+	DescZH      string `json:"desc_zh" binding:"max=2000"`
+	Category    string `json:"category" binding:"required,max=100"`
+	Icon        string `json:"icon" binding:"max=50"`
+	Image       string `json:"image" binding:"max=2000"`
+	ConfigJSON  string `json:"config_json" binding:"max=50000"`
+	Content     string `json:"content" binding:"required,max=50000"`
+	ContentZH   string `json:"content_zh" binding:"max=50000"`
+	Tags        string `json:"tags" binding:"max=500"`
 }
 
 type CreateCommentRequest struct {
-	Content string `json:"content" binding:"required"`
+	Content string `json:"content" binding:"required,max=2000"`
 }
 
 type LoginResponse struct {

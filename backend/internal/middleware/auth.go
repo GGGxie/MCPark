@@ -77,15 +77,23 @@ func extractToken(c *gin.Context) string {
 	return ""
 }
 
+// validateToken verifies an HS256 JWT signed with secret. Tokens must carry
+// an expiry, and must include a numeric user_id claim.
 func validateToken(tokenStr, secret string) (jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
 		return []byte(secret), nil
-	})
-	if err != nil || !token.Valid {
+	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired())
+	if err != nil {
 		return nil, err
+	}
+	if !token.Valid {
+		return nil, jwt.ErrTokenInvalidClaims
 	}
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
+		return nil, jwt.ErrTokenInvalidClaims
+	}
+	if _, ok := claims["user_id"].(float64); !ok {
 		return nil, jwt.ErrTokenInvalidClaims
 	}
 	return claims, nil

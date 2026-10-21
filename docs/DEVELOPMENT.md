@@ -2,6 +2,18 @@
 
 ## 开发环境搭建
 
+### 必需的环境变量（后端）
+
+| 变量 | 说明 |
+| --- | --- |
+| `JWT_SECRET` | **必填**，至少 32 个字符；缺失、长度不足或等于旧默认值时后端拒绝启动。可用 `openssl rand -base64 48` 生成。 |
+| `LISTEN_ADDR` | 监听地址，默认 `127.0.0.1`；需要容器/外部直接访问时显式设为 `0.0.0.0`。 |
+| `PORT` | 监听端口，默认 `8086`。 |
+| `GIN_MODE` | 默认 `release`；本地调试可设为 `debug`。 |
+| `FRONTEND_URL` | 前端地址；登录完成后重定向到 `FRONTEND_URL/auth/callback#token=...`。以 `https://` 开头时 OAuth state cookie 带 `Secure`。 |
+
+后端对请求体限制为 256KB，并仅信任来自 `127.0.0.1` 的反向代理转发头（`X-Forwarded-For`）。健康检查：`GET /api/health`。
+
 ### 后端开发
 
 1. **安装Go 1.21+**
