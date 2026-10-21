@@ -7,7 +7,6 @@ import (
 	"MCPark/internal/config"
 	"MCPark/internal/db"
 	"MCPark/internal/handler"
-	"MCPark/internal/middleware"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -35,12 +34,6 @@ func main() {
 		AllowCredentials: true,
 	}))
 
-	dedup := handler.NewDedup()
-	authHandler := handler.NewAuthHandler(database, cfg)
-	serviceHandler := handler.NewServiceHandler(database, dedup)
-	adminHandler := handler.NewAdminHandler(database)
-	articleHandler := handler.NewArticleHandler(database, dedup)
-
 	// Serve frontend static files
 	r.Static("/assets", "./static/assets")
 	r.StaticFile("/vite.svg", "./static/vite.svg")
@@ -52,44 +45,7 @@ func main() {
 		c.File("./static/index.html")
 	})
 
-	api := r.Group("/api")
-	{
-		auth := api.Group("/auth")
-		{
-			auth.GET("/google", authHandler.GoogleLogin)
-			auth.GET("/google/callback", authHandler.GoogleCallback)
-			auth.POST("/google/token", authHandler.GoogleTokenLogin)
-			auth.GET("/me", middleware.AuthRequired(cfg.JWTSecret), authHandler.GetMe)
-		}
-
-		services := api.Group("/services")
-		{
-			services.GET("", serviceHandler.ListServices)
-			services.GET("/featured", serviceHandler.GetFeaturedServices)
-			services.GET("/categories", serviceHandler.GetCategories)
-			services.GET("/:id", serviceHandler.GetService)
-			services.POST("", middleware.AuthRequired(cfg.JWTSecret), serviceHandler.CreateService)
-			services.POST("/:id/like", middleware.AuthRequired(cfg.JWTSecret), serviceHandler.LikeService)
-			services.POST("/:id/install", serviceHandler.InstallService)
-			services.GET("/:id/comments", serviceHandler.GetComments)
-			services.POST("/:id/comments", middleware.AuthRequired(cfg.JWTSecret), serviceHandler.CreateComment)
-		}
-
-		admin := api.Group("/admin")
-		admin.Use(middleware.AdminRequired(cfg.JWTSecret))
-		{
-			admin.GET("/services", adminHandler.ListAllServices)
-			admin.POST("/services/:id/approve", adminHandler.ApproveService)
-			admin.POST("/services/:id/reject", adminHandler.RejectService)
-			admin.DELETE("/services/:id", adminHandler.DeleteService)
-		}
-
-		articles := api.Group("/articles")
-		{
-			articles.GET("", articleHandler.ListArticles)
-			articles.GET("/:id", articleHandler.GetArticle)
-		}
-	}
+	handler.RegisterRoutes(r, database, cfg)
 
 	log.Printf("MCPark server starting on port %s", cfg.Port)
 	if err := r.Run(":" + cfg.Port); err != nil {
