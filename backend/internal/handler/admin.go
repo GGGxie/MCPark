@@ -2,9 +2,9 @@ package handler
 
 import (
 	"database/sql"
+	"log"
 	"math"
 	"net/http"
-	"strconv"
 
 	"MCPark/internal/model"
 
@@ -20,16 +20,9 @@ func NewAdminHandler(db *sql.DB) *AdminHandler {
 }
 
 func (h *AdminHandler) ListAllServices(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	page, pageSize := parsePaging(c, 20, 100)
 	status := c.DefaultQuery("status", "")
 
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
 	offset := (page - 1) * pageSize
 
 	query := `SELECT id, name, title, title_zh, description, desc_zh, category, icon, image, author_id, author_name, author_avatar,
@@ -98,12 +91,30 @@ func (h *AdminHandler) RejectService(c *gin.Context) {
 
 func (h *AdminHandler) DeleteService(c *gin.Context) {
 	id := c.Param("id")
-	h.db.Exec("DELETE FROM likes WHERE service_id = ?", id)
-	h.db.Exec("DELETE FROM comments WHERE service_id = ?", id)
-	_, err := h.db.Exec("DELETE FROM services WHERE id = ?", id)
-	if err != nil {
+	if err := h.deleteServiceTx(id); err != nil {
+		log.Printf("delete service %s failed: %v", id, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete service"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Service deleted"})
+}
+
+// deleteServiceTx removes a service together with its likes and comments in a
+// single transaction so a failure cannot leave partial data behind.
+func (h *AdminHandler) deleteServiceTx(id string) error {
+	tx, err := h.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // no-op after a successful Commit
+	for _, q := range []string{
+		"DELETE FROM likes WHERE service_id = ?",
+		"DELETE FROM comments WHERE service_id = ?",
+		"DELETE FROM services WHERE id = ?",
+	} {
+		if _, err := tx.Exec(q, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }

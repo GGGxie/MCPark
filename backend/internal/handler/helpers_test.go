@@ -11,6 +11,7 @@ import (
 
 	"MCPark/internal/config"
 	"MCPark/internal/db"
+	"MCPark/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -93,4 +94,44 @@ func serve(r http.Handler, req *http.Request) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	return w
+}
+
+func newTestRouter(database *sql.DB) *gin.Engine {
+	r := gin.New()
+	r.Use(middleware.MaxBodyBytes(middleware.DefaultMaxBodyBytes))
+	RegisterRoutes(r, database, testConfig())
+	return r
+}
+
+// call performs a request against r; body may be nil, an io.Reader or a JSON-able value.
+func call(t *testing.T, r http.Handler, method, path, token, ip string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	var req *http.Request
+	switch b := body.(type) {
+	case nil:
+		req = httptest.NewRequest(method, path, nil)
+	case *bytes.Reader:
+		req = httptest.NewRequest(method, path, b)
+	default:
+		req = httptest.NewRequest(method, path, jsonBody(t, b))
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	if ip != "" {
+		req.RemoteAddr = ip + ":40000"
+	}
+	return serve(r, req)
+}
+
+func scanInt(t *testing.T, database *sql.DB, query string, args ...any) int {
+	t.Helper()
+	var n int
+	if err := database.QueryRow(query, args...).Scan(&n); err != nil {
+		t.Fatalf("query %q: %v", query, err)
+	}
+	return n
 }

@@ -2,10 +2,11 @@ package handler
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"log"
 	"math"
 	"net/http"
-	"strconv"
 	"time"
 
 	"MCPark/internal/model"
@@ -27,18 +28,11 @@ func NewDedup() *actionDedup {
 }
 
 func (h *ServiceHandler) ListServices(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "12"))
+	page, pageSize := parsePaging(c, 12, 50)
 	sort := c.DefaultQuery("sort", "hottest")
 	category := c.Query("category")
 	search := c.Query("search")
 
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 50 {
-		pageSize = 12
-	}
 	offset := (page - 1) * pageSize
 
 	query := `SELECT id, name, title, title_zh, description, desc_zh, category, icon, image, author_id, author_name, author_avatar,
@@ -142,13 +136,25 @@ func (h *ServiceHandler) GetCategories(c *gin.Context) {
 func (h *ServiceHandler) GetService(c *gin.Context) {
 	id := c.Param("id")
 
+	ok, err := h.approvedServiceExists(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch service"})
+		return
+	}
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		return
+	}
+
 	key := fmt.Sprintf("view:service:%s:%s", c.ClientIP(), id)
 	if h.dedup.Allow(key, 1*time.Hour) {
-		h.db.Exec("UPDATE services SET views = views + 1 WHERE id = ?", id)
+		if _, err := h.db.Exec("UPDATE services SET views = views + 1 WHERE id = ?", id); err != nil {
+			log.Printf("update views failed: %v", err)
+		}
 	}
 
 	var s model.Service
-	err := h.db.QueryRow(`SELECT id, name, title, title_zh, description, desc_zh, category, icon, image, config_json,
+	err = h.db.QueryRow(`SELECT id, name, title, title_zh, description, desc_zh, category, icon, image, config_json,
 		content, content_zh, author_id, author_name, author_avatar, tags, status, featured, likes, views, install_count, created_at, updated_at
 		FROM services WHERE id = ? AND status = 'approved'`, id).
 		Scan(&s.ID, &s.Name, &s.Title, &s.TitleZH, &s.Description, &s.DescZH, &s.Category, &s.Icon, &s.Image, &s.ConfigJSON,
@@ -164,8 +170,7 @@ func (h *ServiceHandler) GetService(c *gin.Context) {
 
 func (h *ServiceHandler) CreateService(c *gin.Context) {
 	var req model.CreateServiceRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if !bindJSON(c, &req) {
 		return
 	}
 
@@ -193,30 +198,85 @@ func (h *ServiceHandler) LikeService(c *gin.Context) {
 	serviceID := c.Param("id")
 	userID, _ := c.Get("user_id")
 
-	var exists int
-	h.db.QueryRow("SELECT COUNT(*) FROM likes WHERE user_id = ? AND service_id = ?", userID, serviceID).Scan(&exists)
-
-	if exists > 0 {
-		h.db.Exec("DELETE FROM likes WHERE user_id = ? AND service_id = ?", userID, serviceID)
-		h.db.Exec("UPDATE services SET likes = likes - 1 WHERE id = ?", serviceID)
-		c.JSON(http.StatusOK, gin.H{"liked": false})
-	} else {
-		h.db.Exec("INSERT INTO likes (user_id, service_id) VALUES (?, ?)", userID, serviceID)
-		h.db.Exec("UPDATE services SET likes = likes + 1 WHERE id = ?", serviceID)
-		c.JSON(http.StatusOK, gin.H{"liked": true})
+	tx, err := h.db.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update like"})
+		return
 	}
+	defer tx.Rollback() // no-op after a successful Commit
+
+	var one int
+	err = tx.QueryRow("SELECT 1 FROM services WHERE id = ? AND status = 'approved'", serviceID).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update like"})
+		return
+	}
+
+	res, err := tx.Exec("DELETE FROM likes WHERE user_id = ? AND service_id = ?", userID, serviceID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update like"})
+		return
+	}
+	removed, err := res.RowsAffected()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update like"})
+		return
+	}
+
+	liked := removed == 0
+	if liked {
+		if _, err = tx.Exec("INSERT INTO likes (user_id, service_id) VALUES (?, ?)", userID, serviceID); err == nil {
+			_, err = tx.Exec("UPDATE services SET likes = likes + 1 WHERE id = ?", serviceID)
+		}
+	} else {
+		_, err = tx.Exec("UPDATE services SET likes = MAX(likes - 1, 0) WHERE id = ?", serviceID)
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update like"})
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update like"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"liked": liked})
 }
 
 func (h *ServiceHandler) InstallService(c *gin.Context) {
 	serviceID := c.Param("id")
-
-	key := fmt.Sprintf("install:%s:%s", c.ClientIP(), serviceID)
-	if h.dedup.Allow(key, 24*time.Hour) {
-		h.db.Exec("UPDATE services SET install_count = install_count + 1 WHERE id = ?", serviceID)
-		c.JSON(http.StatusOK, gin.H{"message": "Install count updated", "counted": true})
-	} else {
-		c.JSON(http.StatusOK, gin.H{"message": "Already counted", "counted": false})
+	ok, err := h.approvedServiceExists(serviceID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update install count"})
+		return
 	}
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
+		return
+	}
+	key := fmt.Sprintf("install:%s:%s", c.ClientIP(), serviceID)
+	if !h.dedup.Allow(key, 24*time.Hour) {
+		c.JSON(http.StatusOK, gin.H{"message": "Already counted", "counted": false})
+		return
+	}
+	if _, err := h.db.Exec("UPDATE services SET install_count = install_count + 1 WHERE id = ?", serviceID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update install count"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Install count updated", "counted": true})
+}
+
+// approvedServiceExists reports whether id refers to an approved service.
+func (h *ServiceHandler) approvedServiceExists(id string) (bool, error) {
+	var one int
+	err := h.db.QueryRow("SELECT 1 FROM services WHERE id = ? AND status = 'approved'", id).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func (h *ServiceHandler) GetComments(c *gin.Context) {
@@ -241,8 +301,16 @@ func (h *ServiceHandler) GetComments(c *gin.Context) {
 func (h *ServiceHandler) CreateComment(c *gin.Context) {
 	serviceID := c.Param("id")
 	var req model.CreateCommentRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if !bindJSON(c, &req) {
+		return
+	}
+	ok, err := h.approvedServiceExists(serviceID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create comment"})
+		return
+	}
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
 		return
 	}
 
@@ -262,3 +330,6 @@ func (h *ServiceHandler) CreateComment(c *gin.Context) {
 	id, _ := result.LastInsertId()
 	c.JSON(http.StatusCreated, gin.H{"id": id})
 }
+
+// maxPage bounds the page query parameter so offset arithmetic cannot overflow.
+const maxPage = 100000

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"net/http"
 
 	"MCPark/internal/config"
 	"MCPark/internal/middleware"
@@ -19,6 +20,11 @@ func RegisterRoutes(r *gin.Engine, database *sql.DB, cfg *config.Config) {
 
 	api := r.Group("/api")
 	{
+		// Public liveness probe used by container and proxy health checks.
+		api.GET("/health", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
 		auth := api.Group("/auth")
 		{
 			auth.GET("/google", authHandler.GoogleLogin)

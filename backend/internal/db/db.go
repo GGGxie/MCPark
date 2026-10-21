@@ -14,13 +14,13 @@ import (
 // FileDSN builds the DSN for an on-disk database. Foreign keys are enforced
 // on every pooled connection.
 func FileDSN(dbPath string) string {
-	return dbPath + "?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=5000"
+	return dbPath + "?_journal_mode=WAL&_foreign_keys=on&_busy_timeout=5000&_txlock=immediate"
 }
 
 // MemoryDSN returns a named shared-cache in-memory DSN (used by tests).
 // Distinct names yield isolated databases.
 func MemoryDSN(name string) string {
-	return "file:" + url.QueryEscape(name) + "?mode=memory&cache=shared&_foreign_keys=on"
+	return "file:" + url.QueryEscape(name) + "?mode=memory&cache=shared&_foreign_keys=on&_txlock=immediate"
 }
 
 // Init opens the database at dsn, creates the schema and seeds sample data.
