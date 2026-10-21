@@ -19,7 +19,10 @@ func main() {
 		log.Println("No .env file found, using environment variables")
 	}
 
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal("Invalid configuration: ", err)
+	}
 	database := db.InitDB(cfg.DatabasePath)
 	defer database.Close()
 
