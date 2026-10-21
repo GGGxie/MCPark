@@ -7,12 +7,15 @@ services:
       dockerfile: Dockerfile
     container_name: mcp-info-backend
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - ../data:/app/data
       - ../backend/configs:/app/configs
     environment:
       - GIN_MODE=release
+      - PORT=8080
+      - LISTEN_ADDR=0.0.0.0
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set (at least 32 characters)}
       - CONFIG_PATH=/app/configs/config.yaml
     restart: unless-stopped
     networks:
